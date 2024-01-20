@@ -1,9 +1,9 @@
 #include <OneWire.h>	// For DS18B20
 
 enum Pins {
-  PIN_LED = 13,
+  PIN_BUTTON = 11,
   PIN_TEMPERATURE = 12,
-  PIN_WATER_POWER = 11,
+  PIN_WATER_POWER = 13
 };
 
 enum CommandID : uint8_t {
@@ -15,6 +15,7 @@ enum CommandID : uint8_t {
 
 struct SerialData {
 	int16_t water_temp_dc = 0; // deciCelcius
+  uint8_t heater_on = 0;
 };
 SerialData sdata;
 
@@ -37,12 +38,21 @@ void setup() {
   pinMode(PIN_WATER_POWER, OUTPUT);
   digitalWrite(PIN_WATER_POWER, LOW);
 
-  pinMode(PIN_LED, OUTPUT);
+  pinMode(PIN_BUTTON, INPUT_PULLUP);
 
   Serial.begin(9600);
 }
 
-constexpr unsigned long stateUpdatePeriod = 1000ul;
+void startHeating() {
+  digitalWrite(PIN_WATER_POWER, HIGH);
+  sdata.heater_on = true;
+}
+void stopHeating() {
+  digitalWrite(PIN_WATER_POWER, LOW);
+  sdata.heater_on = false;
+}
+
+constexpr unsigned long stateUpdatePeriod = 5000ul;
 
 void runCommand(CommandID command) {
 	switch(command) {
@@ -50,16 +60,28 @@ void runCommand(CommandID command) {
 		Serial.write((uint8_t*)(&sdata), sizeof(SerialData));
 		break;
 	case ENABLE_WATER_HEATER:
-		digitalWrite(PIN_WATER_POWER, HIGH);
+		startHeating();
 		break;
   case DISABLE_WATER_HEATER:
-    digitalWrite(PIN_WATER_POWER, LOW);
+    stopHeating();
     break;
 	}
 }
 
+
+int16_t maxTempCycle = 0;
+void heatCycle() {
+  startHeating();
+  maxTempCycle = 0;
+}
+
 void updateState() {
 	sdata.water_temp_dc = GetTemperature_dC();
+  if(sdata.water_temp_dc > maxTempCycle) maxTempCycle = sdata.water_temp_dc;
+
+  if(sdata.heater_on && sdata.water_temp_dc + 4 < maxTempCycle) { // Heating up but temperature droping means we hit water heater target temp
+    stopHeating(); // Heat cycle is done, stop water heater
+  }
 }
 
 
@@ -84,13 +106,16 @@ void serialEvent() {
 
 void loop() {
   static unsigned long lastStateUpdate = 0;
-  static bool led_on = false;
   if(millis() - lastStateUpdate > stateUpdatePeriod) {
     updateState();
 
-    digitalWrite(PIN_LED, led_on);
-    led_on = !led_on;
-
     lastStateUpdate = millis();
+  }
+  if(digitalRead(PIN_BUTTON) == LOW && !sdata.heater_on) {
+    unsigned long buttonStart = millis();
+    while(millis() - buttonStart < 500) {
+      if(digitalRead(PIN_BUTTON) != LOW) return;  // Wait for a clear low signal
+    }
+    heatCycle();
   }
 }
