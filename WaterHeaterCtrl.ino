@@ -7,10 +7,9 @@ enum Pins {
 };
 
 enum CommandID : uint8_t {
-	NONE,
-	READ_DATA,
-	ENABLE_WATER_HEATER,
-  DISABLE_WATER_HEATER
+	NONE        = 0x0,
+	READ_DATA   = 0x1,
+	START_CYCLE = 0x2
 };
 
 struct SerialData {
@@ -51,6 +50,11 @@ void stopHeating() {
   digitalWrite(PIN_WATER_POWER, LOW);
   sdata.heater_on = false;
 }
+int16_t maxTempCycle = 0;
+void heatCycle() {
+  startHeating();
+  maxTempCycle = 0;
+}
 
 constexpr unsigned long stateUpdatePeriod = 5000ul;
 
@@ -59,21 +63,12 @@ void runCommand(CommandID command) {
 	case READ_DATA:
 		Serial.write((uint8_t*)(&sdata), sizeof(SerialData));
 		break;
-	case ENABLE_WATER_HEATER:
-		startHeating();
+	case START_CYCLE:
+		heatCycle();
 		break;
-  case DISABLE_WATER_HEATER:
-    stopHeating();
-    break;
 	}
 }
 
-
-int16_t maxTempCycle = 0;
-void heatCycle() {
-  startHeating();
-  maxTempCycle = 0;
-}
 
 void updateState() {
 	sdata.water_temp_dc = GetTemperature_dC();
