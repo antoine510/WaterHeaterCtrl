@@ -74,7 +74,7 @@ void updateState() {
 	sdata.water_temp_dc = GetTemperature_dC();
   if(sdata.water_temp_dc > maxTempCycle) maxTempCycle = sdata.water_temp_dc;
 
-  if(sdata.heater_on && sdata.water_temp_dc + 4 < maxTempCycle) { // Heating up but temperature droping means we hit water heater target temp
+  if(sdata.heater_on && sdata.water_temp_dc + 2 < maxTempCycle) { // Heating up but temperature droping means we hit water heater target temp
     stopHeating(); // Heat cycle is done, stop water heater
   }
 }
